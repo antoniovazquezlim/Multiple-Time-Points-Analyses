@@ -1,0 +1,137 @@
+---
+title: "lim_homework_week_12"
+---
+
+# Homework 12 -- Antonio Vazquez Lim
+
+```{r}
+pacman::p_load(tidyverse,
+               lavaan, # SEM package
+               lm.beta, # for getting standardized beta coefficients
+               readxl, # reading xlsx files
+               rstatix, # anova_test
+               psych, # descriptive stats
+               cowplot,
+               performance) # model assumption testing
+```
+
+## Part 1
+
+```{r}
+# loading data
+dep_df <- read_excel("hw12_part1.xlsx")
+head(dep_df)
+```
+
+### Zero-order correlations
+
+We first see if depression at $t_1$ is correlated with communication skills at $t_2$, and see if communication skills at $t_1$ is correlated with depression at $t_2$:
+
+```{r}
+cor.test(dep_df$dep_t1, dep_df$commun_t2)
+cor.test(dep_df$commun_t1, dep_df$dep_t2)
+```
+
+Yes, both pairs are correlated with one another such that for $b_{\text{d}_{t_1} \rightarrow \text{c}_{t_2}} = -0.235, p < .01$ and $b_{\text{c}_{t_1} \rightarrow \text{d}_{t_2}} = -0.457, p < .001$.
+
+### Multiple regression for cross-lagged analysis
+
+Now we are going to do four things:
+
+1.  Create a model describing the stability of depression symptoms $t_1 \rightarrow t_2$
+2.  Create a model describing the stability of communication skills $t_1 \rightarrow t_2$
+3.  Regress depression symptoms at $t_2$ on those at $t_1$ and communication skills at $t_1$
+4.  Regress communication skills at $t_2$ on those at $t_1$ and depression symptoms at $t_1$
+
+```{r}
+# regressing dep_t2 onto dep_t1 (stability)
+fit_dep_0 <- lm(dep_t2 ~ dep_t1, data = dep_df)
+
+# regressing commun_t2 onto commun_t1 (stability)
+fit_comm_0 <- lm(commun_t2 ~ commun_t1, data = dep_df)
+
+# multiple regressions for cross-lagged analyses
+fit1 <- lm(dep_t2 ~ dep_t1 + commun_t1, data = dep_df)
+fit2 <- lm(commun_t2 ~ dep_t1 + commun_t1, data = dep_df)
+
+fit_dep_0 %>% lm.beta() %>% summary()
+fit_comm_0 %>% lm.beta() %>% summary()
+fit1 %>% lm.beta() %>% summary()
+fit2 %>% lm.beta() %>% summary()
+```
+
+The results of our regressions indicate that depression at $t_1$ significantly predicts depression at $t_2$, $\beta_{d_1 \rightarrow d_2} = 0.53, p < .001$, indicating that depression symptoms remain fairly stable over time. The same is true for communication skills remaining stable over the same time interval, $\beta_{c_1 \rightarrow c_2} = 0.39, p < .001$.
+
+The cross-lagged analyses indicate that better communication skills at $t_1$ significantly predict less depression symptoms at $t_2$ while controlling for depression symptoms at $t_1$, $\beta_{c_1 \rightarrow d_2} = -0.31,\hspace{1mm} t(136) = -4.32,\hspace{1mm} p < .001$. However, depression symptoms at $t_1$ remained a significant predictor of depression symptoms at $t_2$ while controlling for communication skills at $t_1$, $\beta_{d_1 \rightarrow d_2} = 0.42, t(136) = 5.80, p < .001$.
+
+Taken together these results suggest that, despite having good communication skills, one may not see a decrease in depression symptoms at a later time, but also that
+
+The next multiple regression, with communication skills at $t_2$ regressed on depression symptoms and communication skills at $t_1$, resulted in no significant association between depression symptoms at $t_1$ and communication skills at $t_2$ when controlling for communication skills at $t_1$, $\beta_{d_1 \rightarrow c_2} = -0.12, t(136) = -1.40, p = .17$. In other words, depression symptoms at $t_1$ do not predict any change in communication skills at $t_2$ beyond that change attributable to comunication skills at $t_1$. However, controlling for depression symptoms at $t_1$, it remained true that better communication skills at an earlier time predicted better communication skills in the future, even when with depression symptoms considered, $\beta_{c_1 \rightarrow c_2} = 0.35, t(136) = 4.14, p < .001$.
+
+Taken together, these results suggest that depression does not lead to worse communication skills. Rather, poor communication skills may lead to worsening depression symptoms *or* better communication skills may lead to lessening depression symptoms. Even with communication skills considered, however, depression remains stable over time, and so it may be worth considering that depression symptoms do not resolve with solely good communication and further intervention may be necessary.
+
+## Part 2
+
+Fetching the data:
+
+```{r}
+anorexia_data <- read_excel("hw12_part2.xlsx")
+head(anorexia_data)
+```
+
+### Multiple regression
+
+First we will use regression to test our hypothesis:
+
+```{r}
+fit0 <- lm(Posttest ~ Pretest, data = anorexia_data)
+fit1Pt2 <- lm(Posttest ~ Pretest + Group, data = anorexia_data)
+fit0 %>% lm.beta() %>% summary()
+fit1Pt2 %>% lm.beta() %>% summary()
+```
+
+Now the $R^2\Delta$:
+
+```{r}
+0.1516-0.0646
+```
+
+### Multiple regression write-up
+
+To test the effects of experimental condition on post-treatment anorexia test scores, we ran a multiple regression in which post scores on the DV were regressed first onto pre scores on the DV and then a variable indicating condition (- 1 = control, 1 = experimental condition). Pre-treatment anorexia scores, $S_0$, were not significantly associated with post-treatment scores, $S_f$, with $\beta_{0\rightarrow 1} = .25, t(53) = 1.91, p = .06$, indicating that scores did not remain stable over the time interval. In the second regression, wherein the grouping factor was added into the model, group was a significant predictor of post-treatment test scores, $\beta_{g\rightarrow S_f} = .30, t(52) = 2.31, p < .05$. The second model captures a modest, but significant, 8.7% more variance ($R^2 \Delta = 0.087$) than the model with only pre-treatment scores as a predictor.
+
+### ANCOVA
+
+Now we just run an ANOVA and R automatically knows its an ANCOVA by the variables:
+
+```{r}
+res.aov <- anorexia_data %>% anova_test(Posttest ~ Pretest + Group)
+get_anova_table(res.aov)
+```
+
+So, only group was significant. Now we do post-hocs for estimated marginal means and effect side (Cohen's $d$):
+
+```{r}
+pws <- anorexia_data %>%
+  emmeans_test(
+    Posttest ~ Group, covariate = Pretest,
+    p.adjust.method = "bonferroni"
+  )
+pws$p
+pws$p.adj
+get_emmeans(pws)
+```
+
+So, the estimated marginal means reveal that there is a significant difference in the post-treatment test scores by experimental group. Now Cohen's $d$:
+
+```{r}
+rstatix::cohens_d(Posttest ~ Group, 
+                  data=anorexia_data, 
+                  paired = F)
+```
+
+So, there is a moderate effect size $d = |-0.68|$.
+
+### ANCOVA write-up
+
+To evaluate the effects of the intervention on post-treatment anorexia test scores, we conducted an ANCOA test predicting the $t_2$ post-treatment scores with experimental group (1 = intervention, 0 = control) as a factor and pre-treatment scores as a covariate. Results of the ANCOVA indicated a significant effect of experimental group, controlling for pre-treatment anorexia scores, $F(1, 52) = 5.33, p < .05$. Adjusting for pre-treatment scores, the mean post-treatment scores were greater in the intervention group, $\text{EMM}_{int} = 85.53, \text{SE} = 1.26$, than those in the control group, $\text{EMM}_{control} = 81.29, \text{SE} = 1.33$, with this difference having a moderate effect size, $d_c = -0.68$.
